@@ -83,8 +83,16 @@ const rawVersion =
     : // For nightly we continue to use 0.0.0 for clarity for npm
     nightlyBuild
     ? '0.0.0'
-    : // For pre-release and stable releases, we use the git tag of the version we're releasing (set in bump-oss-version)
+    : // For pre-release and stable releases, we use the git tag of the version we're releasing
       buildTag;
+
+// This probably means we didn't set an initial tag for the release branch or something else is wrong
+if (rawVersion == null) {
+  echo(
+    'Missing tag for release. \nIf this is the first pre-release, make sure to set the tag on the release branch of the form v0.67.0-rc.0',
+  );
+  exit(1);
+}
 
 let version,
   major,
@@ -109,20 +117,19 @@ if (dryRunBuild) {
     .replace(/[T]/g, '-');
   releaseVersion = `${version}-${dateIdentifier}-${shortCommit}`;
 } else {
+  // stable or pre-release
   releaseVersion = version;
 }
 
 // Bump version number in various files (package.json, gradle.properties etc)
-// For stable, pre-release releases, we manually call bump-oss-version on release branch
-if (nightlyBuild || dryRunBuild) {
-  if (
-    exec(
-      `node scripts/bump-oss-version.js --nightly --to-version ${releaseVersion}`,
-    ).code
-  ) {
-    echo('Failed to bump version number');
-    exit(1);
-  }
+const nightlyFlag = nightlyBuild || dryRunBuild ? '--nightly ' : '';
+if (
+  exec(
+    `node scripts/bump-oss-version.js ${nightlyFlag}--to-version ${releaseVersion}`,
+  ).code
+) {
+  echo(`Failed to bump version number to ${releaseVersion}`);
+  exit(1);
 }
 
 // -------- Generating Android Artifacts with JavaDoc
@@ -179,10 +186,10 @@ const tagFlag = nightlyBuild
 // use otp from envvars if available
 const otpFlag = otp ? `--otp ${otp}` : '';
 
-if (exec(`npm publish ${tagFlag} ${otpFlag}`).code) {
-  echo('Failed to publish package to npm');
-  exit(1);
-} else {
-  echo(`Published to npm ${releaseVersion}`);
-  exit(0);
-}
+// if (exec(`npm publish ${tagFlag} ${otpFlag}`).code) {
+//   echo('Failed to publish package to npm');
+//   exit(1);
+// } else {
+//   echo(`Published to npm ${releaseVersion}`);
+//   exit(0);
+// }
